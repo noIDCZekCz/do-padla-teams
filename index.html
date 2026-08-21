@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Do padla</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at top, rgba(255,255,255,.08), transparent 35%),
+        #111318;
+      color: #f7f7f8;
+    }
+    .card {
+      width: min(900px, 92vw);
+      padding: 56px 36px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 28px;
+      background: rgba(255,255,255,.05);
+      box-shadow: 0 24px 80px rgba(0,0,0,.35);
+      text-align: center;
+      backdrop-filter: blur(10px);
+    }
+    .eyebrow {
+      font-size: clamp(18px, 2vw, 26px);
+      letter-spacing: .12em;
+      font-weight: 700;
+      opacity: .75;
+      margin-bottom: 18px;
+    }
+    .countdown {
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(64px, 13vw, 150px);
+      line-height: .95;
+      font-weight: 800;
+      letter-spacing: -.05em;
+      margin: 0;
+    }
+    .message {
+      margin-top: 24px;
+      font-size: clamp(18px, 2.6vw, 32px);
+      font-weight: 600;
+    }
+    .sub {
+      margin-top: 12px;
+      opacity: .6;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="eyebrow">🏠 DO PADLA</div>
+    <div id="countdown" class="countdown">--:--:--</div>
+    <div id="message" class="message">Načítám odpočet…</div>
+    <div class="sub">Po–Čt do 15:00 · Pá do 14:30 · čas Praha</div>
+  </main>
+
+  <script>
+    const TIME_ZONE = "Europe/Prague";
+    function getEndTime(weekday) {
+      // Pátek: 14:30, pondělí–čtvrtek: 15:00
+      if (weekday === "Fri") return { hour: 14, minute: 30 };
+      return { hour: 15, minute: 0 };
+    }
+
+    function zonedParts(date = new Date()) {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: TIME_ZONE,
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+        hourCycle: "h23",
+        weekday: "short"
+      }).formatToParts(date);
+      return Object.fromEntries(parts.map(p => [p.type, p.value]));
+    }
+
+    function timeZoneOffsetMs(date, timeZone) {
+      const p = new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+        hourCycle: "h23"
+      }).formatToParts(date);
+      const o = Object.fromEntries(p.map(x => [x.type, x.value]));
+      const asUTC = Date.UTC(+o.year, +o.month - 1, +o.day, +o.hour, +o.minute, +o.second);
+      return asUTC - date.getTime();
+    }
+
+    function zonedDateToUtc(year, month, day, hour, minute, second, timeZone) {
+      let guess = Date.UTC(year, month - 1, day, hour, minute, second);
+      for (let i = 0; i < 3; i++) {
+        const offset = timeZoneOffsetMs(new Date(guess), timeZone);
+        guess = Date.UTC(year, month - 1, day, hour, minute, second) - offset;
+      }
+      return new Date(guess);
+    }
+
+    function isWeekend(weekday) {
+      return weekday === "Sat" || weekday === "Sun";
+    }
+
+    function update() {
+      const now = new Date();
+      const p = zonedParts(now);
+
+      const countdown = document.getElementById("countdown");
+      const message = document.getElementById("message");
+
+      if (isWeekend(p.weekday)) {
+        countdown.textContent = "VÍKEND";
+        message.textContent = "Práce počká 😎";
+        return;
+      }
+
+      const endTime = getEndTime(p.weekday);
+      const target = zonedDateToUtc(
+        +p.year, +p.month, +p.day,
+        endTime.hour, endTime.minute, 0,
+        TIME_ZONE
+      );
+
+      const diff = target.getTime() - now.getTime();
+
+      if (diff <= 0) {
+        countdown.textContent = "PADLA!";
+        message.textContent = "Můžeš domů 🎉";
+        return;
+      }
+
+      const totalSeconds = Math.floor(diff / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      countdown.textContent =
+        String(hours).padStart(2, "0") + ":" +
+        String(minutes).padStart(2, "0") + ":" +
+        String(seconds).padStart(2, "0");
+
+      message.textContent = "Ještě chvilku…";
+    }
+
+    update();
+    setInterval(update, 1000);
+  </script>
+</body>
+</html>
